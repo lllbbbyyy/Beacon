@@ -237,23 +237,3 @@ v_case       = concat(sqrt(0.75) * v_bottleneck, sqrt(0.25) * v_hardware)
 
 This gives more weight to bottleneck semantics while still conditioning retrieval on the current hardware state.
 
-## Before Publishing to GitHub
-
-Do not commit:
-
-- `key.json`
-- `tmp/`
-- `runs/`
-- `out.out`
-- `todo_tmp.md`
-- `langgraph_checkpoints.sqlite`
-- `history_vector_store.sqlite`
-- local model or embedding caches
-
-These are covered by `.gitignore`.
-
-Note: the `Compass/` directory may contain its own `.git` directory. If Compass should be published as a normal subdirectory of this repository, remove or otherwise handle the nested Git metadata. If Compass should remain independently versioned, manage it as a Git submodule.
-
-## License
-
-No license has been specified yet. Before public release, add a `LICENSE` file and verify the licensing requirements of the Compass code and dataset files.
