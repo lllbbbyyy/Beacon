@@ -1,0 +1,85 @@
+# Secrets and local credentials
+key.json
+*.key
+*.pem
+.env
+.env.*
+!.env.example
+
+# Local notes and transient console output
+todo_tmp.md
+out.out
+*.out
+*.log
+
+# IDE / agent-local state
+.vscode/
+.idea/
+.codex
+.agents/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Python environments and packaging artifacts
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+
+# Experiment outputs
+tmp/
+runs/
+outputs/
+llm_trace/
+history_vector_db.json
+*_vector_db.json
+tuning_summary.json
+tuning_metrics.json
+tuning_metrics_table.md
+timing_summary.json
+timing_summary.md
+pending_transition.json
+latest_proposal.json
+best_hardware.json
+langgraph_state.json
+langgraph_manifest.json
+
+# LangGraph / local databases
+langgraph_checkpoints.sqlite
+langgraph_checkpoints.sqlite-*
+*.sqlite
+*.sqlite-*
+*.db
+
+# Model and embedding caches that may be created inside the repo
+.cache/
+models/
+sentence_transformers/
+huggingface/
+
+# Compass build products
+Compass/build/
+Compass/CMakeFiles/
+Compass/CMakeCache.txt
+Compass/cmake_install.cmake
+Compass/**/*.o
+Compass/**/*.so
+Compass/**/*.a
+Compass/**/*.dylib
+Compass/**/*.exe
+
+# macOS / Windows noise
+.DS_Store
+Thumbs.db
+
+paper

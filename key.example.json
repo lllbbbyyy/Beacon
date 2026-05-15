@@ -1,0 +1,10 @@
+{
+  "example-profile": {
+    "model": "your-chat-model-name",
+    "key": "YOUR_API_KEY",
+    "url": "https://your-openai-compatible-endpoint/v1",
+    "temperature": 0.2,
+    "timeout": 600,
+    "return_reasoning": false
+  }
+}

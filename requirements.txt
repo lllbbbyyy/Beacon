@@ -1,0 +1,4 @@
+openai
+langgraph
+langgraph-checkpoint-sqlite
+sentence-transformers
