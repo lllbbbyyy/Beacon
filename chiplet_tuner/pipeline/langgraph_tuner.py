@@ -357,6 +357,7 @@ class LangGraphTuner(MultiAgentTuner):
         iteration = int(state["next_iteration"])
         bottleneck_state = self._bottleneck_state_from_record(state["bottleneck_state"])
         analysis_evaluation = self._evaluation_from_record(state["analysis_evaluation"])
+        evaluation_bases = self._evaluation_bases_from_records(state["evaluation_bases"])
         self._configure_llm_trace(Path(state["iteration_dir"]))
         started = time.monotonic()
         try:
@@ -374,6 +375,8 @@ class LangGraphTuner(MultiAgentTuner):
                     output_dir=Path(state["iteration_dir"]),
                     evaluation=analysis_evaluation,
                     forbidden_hardware_fingerprints=set(state["forbidden_hardware_fingerprints"]),
+                    search_state=state["search_state"],
+                    evaluation_bases=evaluation_bases,
                 )
         finally:
             self._record_timing(

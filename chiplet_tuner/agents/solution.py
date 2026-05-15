@@ -47,8 +47,13 @@ class SolutionGenerationAgent:
         output_dir: Path,
         evaluation: Optional[EvaluationResult] = None,
         forbidden_hardware_fingerprints: Optional[Set[str]] = None,
+        search_state: Optional[Dict[str, Any]] = None,
+        evaluation_bases: Optional[Dict[str, EvaluationResult]] = None,
     ) -> SolutionProposal:
         forbidden_hardware_fingerprints = set(forbidden_hardware_fingerprints or set())
+        evaluation_bases = dict(evaluation_bases or {})
+        if evaluation is not None:
+            evaluation_bases.setdefault("current", evaluation)
         state_message = self._state_message(state)
         cases = self.store.search(
             state.retrieval_description,
@@ -65,6 +70,8 @@ class SolutionGenerationAgent:
             retrieved_cases=summarized_cases,
             simulator_schema=self.simulator_schema,
             active_base=state.llm_notes.get("analysis_base", {}),
+            search_state=search_state,
+            evaluation_bases=evaluation_bases,
         )
         react_result = run_react_tool_graph(
             llm=self.llm,
@@ -84,12 +91,16 @@ class SolutionGenerationAgent:
                 "simulator_schema": self.simulator_schema,
                 "search_space": self.simulator_schema.get("search_space", {}),
                 "forbidden_hardware_fingerprints": sorted(forbidden_hardware_fingerprints),
+                "search_state_available": search_state is not None,
+                "analysis_base_tools_available": bool(evaluation_bases),
             },
             context=context,
             max_steps=15,
         )
         tool_results = react_result.tool_results
         react_trace = react_result.transcript
+        proposal_base_hardware = context.current_hardware or hardware
+        proposal_base_record = context.active_base or state.llm_notes.get("analysis_base", {})
         result = complete_json_continuing_messages(
             self.llm,
             react_result.messages,
@@ -114,7 +125,7 @@ class SolutionGenerationAgent:
         rationale = self._require_str(result, "rationale", allow_empty=True)
         updated_hardware, validation_notes = self._normalize_hardware(
             proposed=proposed_hardware,
-            current=hardware,
+            current=proposal_base_hardware,
         )
         if hardware_fingerprint(updated_hardware) in forbidden_hardware_fingerprints:
             repaired, repair_actions = self.make_exploration_move(
@@ -128,7 +139,7 @@ class SolutionGenerationAgent:
                 validation_notes.extend(repair_actions)
             else:
                 validation_notes.append("proposal matched an evaluated hardware fingerprint and no legal repair was found")
-        inferred_actions = self._diff_actions(hardware, updated_hardware)
+        inferred_actions = self._diff_actions(proposal_base_hardware, updated_hardware)
         existing_action_prefixes = {action.split(":", 1)[0] for action in actions}
         for action in inferred_actions:
             prefix = action.split(":", 1)[0]
@@ -142,6 +153,7 @@ class SolutionGenerationAgent:
         notes["tool_results"] = serialize_tool_results(tool_results)
         notes["react_trace"] = react_trace
         notes["react_backend"] = "langgraph"
+        notes["proposal_base"] = proposal_base_record
         return SolutionProposal(
             strategy=strategy,
             updated_hardware=updated_hardware,
