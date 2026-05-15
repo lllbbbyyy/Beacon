@@ -45,7 +45,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--output-dir", default=str(ROOT / "runs" / time.strftime("%Y%m%d_%H%M%S")))
-    parser.add_argument("--history-db", default=str(ROOT / "runs" / "history_vector_db.json"))
+    parser.add_argument(
+        "--history-db",
+        default=None,
+        help=(
+            "Optional SQLite RAG history database. If omitted, the run uses "
+            "<output-dir>/history_vector_store.sqlite."
+        ),
+    )
     parser.add_argument("--embedding-model", default="hashing")
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument(
@@ -384,6 +391,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
+    if args.history_db is None:
+        args.history_db = str(output_dir / "history_vector_store.sqlite")
     prepare_compass_inputs(args, output_dir)
 
     if args.from_existing:

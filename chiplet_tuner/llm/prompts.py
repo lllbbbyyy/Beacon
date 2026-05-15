@@ -28,6 +28,10 @@ Tool-use rules:
 - Call at most one tool in each step.
 - Use existing observations before requesting another tool.
 - Prefer targeted calls that improve the final decision quality.
+- Hardware summaries are compact. They include chiplet type order/layout grids, but they may still omit
+  raw per-chiplet fields. If communication, NoP pressure, chiplet placement, or heterogeneous chiplet
+  layout affects the decision, call summarize_hardware_config with include_full_hardware=true after
+  selecting the relevant analysis base.
 """
 
 
@@ -40,6 +44,8 @@ Mission: investigate the whole-model execution behavior and identify layers that
 
 Search-state protocol: in iterative tuning, first inspect search progress with compare_search_states, then choose an analysis base with select_analysis_base. The base may be current, previous, best, or a specific evaluated iteration. Subsequent evidence tools operate on the last selected analysis base, and the layer-level and solution agents will follow that base. You may switch base more than once if comparison requires it; the final selected base defines the handoff context.
 
+Search-state usage pattern: a compact compare_search_states call already shows current, previous, and best evaluated states. If current is not best, the last move regressed, or the trend is unclear, call compare_search_states again with include_history=true and a small history_limit to inspect recent trajectory before selecting the base.
+
 Optimization direction: the combined objective is latency * energy * monetary cost, and lower is better. When a search-state tool reports objective change as (after - before) / before, negative means the objective decreased and improved.
 
 Useful evidence:
@@ -47,7 +53,7 @@ Useful evidence:
 - execution timeline, critical-path position, idle gaps, and core-utilization imbalance;
 - independent layer rank views, including latency, energy, and critical-end views;
 - operator-group concentration and repeated high-impact layer patterns;
-- hardware summary when it helps interpret global execution behavior.
+- hardware summary and chiplet layout when they help interpret global execution behavior, especially communication, idle gaps, or NoP-sensitive behavior.
 
 Tool-use guidance: when requesting layer rank views, choose top_layers yourself based on the needed breadth of evidence. Keep it small, usually 4-8, because the rank view is only a candidate-generation aid.
 
@@ -67,6 +73,7 @@ Useful evidence:
 - compute, memory, communication, buffer, scheduling, and imbalance indicators;
 - layer placement across cores/chiplets, batches, and tiling instances;
 - operator features and hardware context relevant to the candidate layers.
+- chiplet type layout and full hardware details when communication, NoP traffic, or heterogeneous placement may explain a bottleneck.
 
 Scope boundary: this stage translates model-level candidates into structured bottleneck states. Hardware update selection is owned by the solution-generation agent.
 """
@@ -89,6 +96,7 @@ Cost discipline:
 
 Useful evidence:
 - current hardware position in the legal design space;
+- chiplet type layout and full hardware details when communication, NoP bandwidth, tensor parallelism, or heterogeneous chiplet placement affect the proposal;
 - historical cases that match the bottleneck state and hardware context;
 - materialized hardware candidates from hardware-editing tools;
 - validation information that distinguishes derived fields from tunable parameters.
@@ -112,6 +120,7 @@ Return strict JSON:
 
 Selection guidelines:
 - Prefer metrics, timeline, layer rank views, operator groups, monetary cost, and hardware summary when they help explain whole-model behavior.
+- Use hardware summary/full hardware selectively when chiplet layout may explain communication, idle gaps, or parallel imbalance.
 - Request layer-detail tools only when global evidence cannot identify credible candidates.
 - Keep the tool plan small and evidence-focused.
 """
@@ -183,6 +192,7 @@ Return strict JSON:
 Selection guidelines:
 - Prefer inspect_layer_details for the candidate layers when detailed timing, energy, placement, or root-cause evidence is missing.
 - Add operator-group or hardware context if it helps distinguish compute, memory, communication, buffer, scheduling, or imbalance causes.
+- Request full hardware when exact chiplet order or heterogeneous layout matters for communication diagnosis.
 - Keep the plan proportional to the number and uncertainty of candidate layers.
 """
 
@@ -245,6 +255,7 @@ Return strict JSON:
 
 Selection guidelines:
 - Use hardware inspection tools to understand current tunable values and derived fields.
+- Request full hardware when chiplet type order/layout may affect communication or NoP tradeoffs.
 - Use modify_hardware_parameter for deliberate target values.
 - Use step_hardware_parameter for one-step neighboring moves.
 - Keep the tool plan focused on producing one legal, evaluable candidate.
@@ -264,9 +275,10 @@ Decision procedure:
 3. Check whether similar historical moves improved or worsened objective. Treat negative cases as evidence against repeating the same parameter direction.
 4. Estimate the qualitative objective tradeoff: expected latency direction, energy direction, monetary-cost direction, and combined-objective direction.
 5. Reject changes whose likely monetary-cost increase is not justified by a clear expected latency-energy reduction.
-6. Choose a small explainable move unless evidence strongly supports a larger change.
-7. Prefer materialized hardware candidates produced by hardware-editing tools when available.
-8. State the expected benefit, monetary-cost risk, and main uncertainty.
+6. Check whether the hardware evidence is only a compact summary. If chiplet layout or heterogeneous placement may change communication behavior, use full hardware/tool evidence before relying on the summary.
+7. Choose a small explainable move unless evidence strongly supports a larger change.
+8. Prefer materialized hardware candidates produced by hardware-editing tools when available.
+9. State the expected benefit, monetary-cost risk, and main uncertainty.
 
 Hardware design-space contract:
 - compute_spec_and_chiplet_count: tune chip_size as the legal per-chip compute spec. num_chiplets, chip_x, chip_y, compute_units, buffer_size, and macs are derived from chip_size and the accelerator compute budget.
@@ -276,6 +288,7 @@ Hardware design-space contract:
 Materialization guidance:
 - When changing compute spec, request chip_size rather than derived fields.
 - When changing chiplet count, choose a chiplet_type_strategy if layout preservation matters: preserve_prefix keeps the old prefix and pads with the old majority type; majority assigns all new chiplets to the old majority type; uniform assigns all new chiplets to chiplet_type_fill.
+- When changing chiplet_type, tensor_parall, nop_bw, or chip_size, consider whether the type layout/order changes communication paths or NoP pressure.
 - Avoid proposing a hardware fingerprint listed in forbidden_hardware_fingerprints.
 
 Return strict JSON matching this schema:

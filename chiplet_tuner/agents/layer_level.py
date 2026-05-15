@@ -47,7 +47,7 @@ class LayerLevelAgent:
                 "candidate_layers": model_result.candidate_layers,
             },
             context=context,
-            max_steps=8,
+            max_steps=15,
         )
         tool_results = react_result.tool_results
         react_trace = react_result.transcript

@@ -60,14 +60,18 @@ class AnalysisToolbox:
                 name="compare_search_states",
                 description=(
                     "Compare current, previous, and best evaluated search states using a compact view. "
-                    "Use optional include_history/history_limit when a short recent trajectory is needed."
+                    "The default compact view includes current/previous/best; call again with "
+                    "include_history/history_limit when a short recent trajectory is needed."
                 ),
                 input_schema={
                     "requires_context": ["search_state"],
                     "detail_level": "summary|recent; default=summary. Summary omits full per-iteration bases.",
                     "include_history": "optional boolean; include compact recent evaluated iterations when true",
                     "history_limit": f"optional integer; recent iteration count, capped at {MAX_HISTORY_ITEMS}",
-                    "include_hardware": "optional boolean; include compact hardware summaries, default=true",
+                    "include_hardware": (
+                        "optional boolean; include compact hardware summaries with chiplet layout grids, "
+                        "default=true"
+                    ),
                 },
             ),
             ToolSpec(
@@ -168,11 +172,17 @@ class AnalysisToolbox:
                 name="summarize_hardware_config",
                 description=(
                     "Summarize current hardware resources and hierarchical BO search-space position: "
-                    "chip_size-derived chiplet count/spec, per-chiplet type choices, and system parameters."
+                    "chip_size-derived chiplet count/spec, per-chiplet type choices, chiplet layout, and "
+                    "system parameters. Use include_full_hardware when chiplet ordering/layout details may "
+                    "affect communication or NoP reasoning."
                 ),
                 input_schema={
                     "requires_context": ["current_hardware"],
                     "include_design_space": "optional boolean; include candidate design-space positions, default=true",
+                    "include_full_hardware": (
+                        "optional boolean; default=false. Return raw hardware JSON including the full chiplet list "
+                        "when summary/layout grids are insufficient."
+                    ),
                 },
             ),
             ToolSpec(
@@ -657,7 +667,14 @@ class AnalysisToolbox:
                 hardware,
                 search_space,
             )
-        return ToolResult(name="summarize_hardware_config", payload={"hardware": summary})
+        payload: Dict[str, Any] = {"hardware": summary}
+        if self._truthy(arguments.get("include_full_hardware"), default=False):
+            payload["full_hardware"] = hardware
+            payload["full_hardware_note"] = (
+                "Chiplets are returned in simulator order. Interpret chiplet_layout.type_grid as a compact "
+                "row-major view only when chip_x/chip_y match the simulator mapping convention."
+            )
+        return ToolResult(name="summarize_hardware_config", payload=payload)
 
     def materialize_hardware_candidate(self, context: ToolContext, update: Dict[str, Any]) -> ToolResult:
         hardware = self._require_hardware(context)
@@ -2210,6 +2227,12 @@ body {{ margin: 24px; font: 13px/1.4 system-ui, -apple-system, BlinkMacSystemFon
             "per_chip_compute_units_values": dict(compute_counts),
             "per_chip_buffer_size_values": dict(buffer_counts),
             "per_chip_macs_values": dict(macs_counts),
+            "chiplet_layout": self._chiplet_layout_summary(hardware),
+            "summary_limitations": (
+                "This is a compact hardware view. It preserves chiplet type/spec order and a layout grid, "
+                "but omits raw per-chiplet fields; call summarize_hardware_config with "
+                "include_full_hardware=true if communication or placement reasoning needs exact hardware JSON."
+            ),
             "legal_compute_shapes": [
                 {
                     "chip_size": item.get("chip_size"),
@@ -2222,6 +2245,50 @@ body {{ margin: 24px; font: 13px/1.4 system-ui, -apple-system, BlinkMacSystemFon
                 for item in candidates
             ],
         }
+
+    def _chiplet_layout_summary(self, hardware: Dict[str, Any]) -> Dict[str, Any]:
+        chiplets = hardware.get("chiplets", [])
+        if not isinstance(chiplets, list):
+            chiplets = []
+        type_sequence = [
+            str(chip.get("type", "unknown")) if isinstance(chip, dict) else "unknown"
+            for chip in chiplets
+        ]
+        spec_sequence = [
+            {
+                "index": idx,
+                "type": str(chip.get("type", "unknown")),
+                "compute_units": chip.get("compute_units"),
+                "buffer_size": chip.get("buffer_size"),
+                "macs": chip.get("macs"),
+            }
+            for idx, chip in enumerate(chiplets)
+            if isinstance(chip, dict)
+        ]
+        chip_x = self._optional_positive_int(hardware.get("chip_x"))
+        chip_y = self._optional_positive_int(hardware.get("chip_y"))
+        grid: List[List[Optional[str]]] = []
+        if chip_x and chip_y:
+            for y in range(chip_y):
+                row: List[Optional[str]] = []
+                for x in range(chip_x):
+                    idx = y * chip_x + x
+                    row.append(type_sequence[idx] if idx < len(type_sequence) else None)
+                grid.append(row)
+        return {
+            "layout_order_assumption": "row_major_y_then_x",
+            "layout_complete": bool(chip_x and chip_y and len(type_sequence) == chip_x * chip_y),
+            "type_sequence": type_sequence,
+            "type_grid": grid,
+            "spec_sequence": spec_sequence,
+        }
+
+    def _optional_positive_int(self, value: Any) -> Optional[int]:
+        try:
+            integer = int(value)
+        except (TypeError, ValueError):
+            return None
+        return integer if integer > 0 else None
 
     def _core_sort_key(self, core: Any) -> Any:
         core = str(core)

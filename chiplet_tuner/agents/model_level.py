@@ -50,11 +50,13 @@ class ModelLevelAgent:
                 "search_state_available": search_state is not None,
                 "analysis_base_protocol": (
                     "Call compare_search_states and select_analysis_base before detailed evidence tools "
-                    "when search_state_available is true. The final selected base is used downstream."
+                    "when search_state_available is true. Compare current/previous/best first; call "
+                    "compare_search_states again with include_history=true when trend evidence is needed. "
+                    "The final selected base is used downstream."
                 ),
             },
             context=context,
-            max_steps=10,
+            max_steps=15,
         )
         tool_results = react_result.tool_results
         react_trace = react_result.transcript

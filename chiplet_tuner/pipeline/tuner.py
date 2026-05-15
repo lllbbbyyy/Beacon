@@ -1194,7 +1194,41 @@ class MultiAgentTuner:
             "chiplet_types": chiplet_types,
             "compute_units": compute_units,
             "buffer_sizes": buffer_sizes,
+            "chiplet_layout": self._compact_chiplet_layout(hardware),
+            "layout_note": "summary includes type_sequence/type_grid; request full hardware if exact fields matter",
         }
+
+    def _compact_chiplet_layout(self, hardware: Dict[str, Any]) -> Dict[str, Any]:
+        chiplets = hardware.get("chiplets", [])
+        if not isinstance(chiplets, list):
+            chiplets = []
+        type_sequence = [
+            str(chip.get("type", "unknown")) if isinstance(chip, dict) else "unknown"
+            for chip in chiplets
+        ]
+        chip_x = self._positive_int_or_none(hardware.get("chip_x"))
+        chip_y = self._positive_int_or_none(hardware.get("chip_y"))
+        type_grid: List[List[Optional[str]]] = []
+        if chip_x and chip_y:
+            for y in range(chip_y):
+                row: List[Optional[str]] = []
+                for x in range(chip_x):
+                    idx = y * chip_x + x
+                    row.append(type_sequence[idx] if idx < len(type_sequence) else None)
+                type_grid.append(row)
+        return {
+            "layout_order_assumption": "row_major_y_then_x",
+            "layout_complete": bool(chip_x and chip_y and len(type_sequence) == chip_x * chip_y),
+            "type_sequence": type_sequence,
+            "type_grid": type_grid,
+        }
+
+    def _positive_int_or_none(self, value: Any) -> Optional[int]:
+        try:
+            integer = int(value)
+        except (TypeError, ValueError):
+            return None
+        return integer if integer > 0 else None
 
     def _change_summary_from_transition(self, transition: Dict[str, Any]) -> Dict[str, Any]:
         solution = transition.get("solution", {})
@@ -1398,9 +1432,10 @@ class MultiAgentTuner:
         after_metrics = self._metrics_with_objective(after_evaluation.metrics)
         improvement = self._compare_metrics(before_metrics, after_metrics)
         solution = dict(pending_transition["solution"])
-        solution["improvement"] = improvement
+        solution.pop("updated_hardware_fingerprint", None)
         self.history_store.add_case(
             bottleneck_description=pending_transition["bottleneck_description"],
+            bottleneck_state=pending_transition["bottleneck_state"],
             hardware=pending_transition["hardware"],
             solution=solution,
             metrics={

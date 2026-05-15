@@ -330,7 +330,7 @@ def main() -> None:
     toolbox = AnalysisToolbox()
     llm = RecordingMockLLMClient()
     history_store = HistoryVectorStore(
-        OUT_DIR / "history.json",
+        OUT_DIR / "history.sqlite",
         embedding_model=create_embedding_model("hashing"),
     )
     simulator_schema = adapter.schema()

@@ -152,8 +152,7 @@ python3 main.py \
   --llm-config key.json \
   --llm-profile mimo \
   --embedding-model BAAI/bge-small-en-v1.5 \
-  --output-dir runs/real_llm_prefill_3iter \
-  --history-db runs/real_llm_prefill_3iter/history_vector_db.json
+  --output-dir runs/real_llm_prefill_3iter
 ```
 
 Offline mock LLM example:
@@ -165,9 +164,16 @@ python3 main.py \
   --dataset sharegpt \
   --compute-scale 64 \
   --embedding-model hashing \
-  --output-dir runs/mock_smoke \
-  --history-db runs/mock_smoke/history_vector_db.json
+  --output-dir runs/mock_smoke
 ```
+
+If `--history-db` is omitted, the RAG history database is created automatically at:
+
+```text
+<output-dir>/history_vector_store.sqlite
+```
+
+Pass `--history-db` only when you intentionally want to reuse or share a history database across runs.
 
 ### 3. Resume from a LangGraph Checkpoint
 
@@ -183,7 +189,6 @@ python3 main.py \
   --llm-profile mimo \
   --embedding-model BAAI/bge-small-en-v1.5 \
   --output-dir runs/real_llm_prefill_3iter \
-  --history-db runs/real_llm_prefill_3iter/history_vector_db.json \
   --resume
 ```
 
@@ -201,7 +206,7 @@ Each run writes artifacts under `--output-dir`:
 - `iter_xxx/analysis/agent_trace.json`: structured trace of the three agents.
 - `iter_xxx/llm_trace/raw_json/`: raw request/response JSON for each LLM call.
 - `iter_xxx/llm_trace/view_md/`: readable per-agent dialogue expansions.
-- `history_vector_db.json`: RAG historical-case database.
+- `history_vector_store.sqlite`: RAG historical-case vector database.
 - `tuning_metrics_table.md`: per-iteration metrics, objective values, and relative changes.
 - `timing_summary.md` / `timing_summary.json`: timing statistics for evaluator, agents, RAG, and trace writing.
 - `best_hardware.json`: best hardware configuration found so far.
@@ -218,3 +223,37 @@ The hardware design space follows the Compass BO hierarchy:
 
 The LLM is not expected to manually maintain derived hardware fields. Hardware-editing tools materialize and validate legal configurations.
 
+## RAG Memory
+
+Historical tuning cases are stored in a SQLite vector store. Each case keeps the structured bottleneck state, the full hardware configuration, the proposed solution, before/after evaluation metrics, metadata, and a retrieval vector.
+
+The retrieval vector is built with a dual-channel embedding:
+
+```text
+v_bottleneck = embedding(bottleneck_state_description)
+v_hardware   = embedding(full_hardware_json)
+v_case       = concat(sqrt(0.75) * v_bottleneck, sqrt(0.25) * v_hardware)
+```
+
+This gives more weight to bottleneck semantics while still conditioning retrieval on the current hardware state.
+
+## Before Publishing to GitHub
+
+Do not commit:
+
+- `key.json`
+- `tmp/`
+- `runs/`
+- `out.out`
+- `todo_tmp.md`
+- `langgraph_checkpoints.sqlite`
+- `history_vector_store.sqlite`
+- local model or embedding caches
+
+These are covered by `.gitignore`.
+
+Note: the `Compass/` directory may contain its own `.git` directory. If Compass should be published as a normal subdirectory of this repository, remove or otherwise handle the nested Git metadata. If Compass should remain independently versioned, manage it as a Git submodule.
+
+## License
+
+No license has been specified yet. Before public release, add a `LICENSE` file and verify the licensing requirements of the Compass code and dataset files.

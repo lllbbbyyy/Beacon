@@ -49,9 +49,14 @@ class SolutionGenerationAgent:
         forbidden_hardware_fingerprints: Optional[Set[str]] = None,
     ) -> SolutionProposal:
         forbidden_hardware_fingerprints = set(forbidden_hardware_fingerprints or set())
-        cases = self.store.search(state.retrieval_description, hardware, top_k=self.top_k)
-        summarized_cases = summarize_cases(cases)
         state_message = self._state_message(state)
+        cases = self.store.search(
+            state.retrieval_description,
+            hardware,
+            top_k=self.top_k,
+            bottleneck_state=state_message,
+        )
+        summarized_cases = summarize_cases(cases)
         context = ToolContext(
             output_dir=output_dir,
             evaluation=evaluation,
@@ -81,7 +86,7 @@ class SolutionGenerationAgent:
                 "forbidden_hardware_fingerprints": sorted(forbidden_hardware_fingerprints),
             },
             context=context,
-            max_steps=6,
+            max_steps=15,
         )
         tool_results = react_result.tool_results
         react_trace = react_result.transcript
