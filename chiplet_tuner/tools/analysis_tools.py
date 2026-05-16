@@ -117,7 +117,10 @@ class AnalysisToolbox:
                     "layer_ids": "optional list of layer ids for view=layers",
                     "layer_names": "optional list of layer names for view=layers",
                     "groups": "optional list of operator groups for view=groups or ranked filtering",
-                    "include_fields": "optional list: basic,shares,placement,timing,energy,energy_components,breakdown,root_cause",
+                    "include_fields": (
+                        "optional list: basic,shares,placement,timing,energy,energy_components,breakdown,"
+                        "root_cause, or dimension aliases compute/memory/communication/buffer"
+                    ),
                 },
             ),
             ToolSpec(
@@ -132,7 +135,10 @@ class AnalysisToolbox:
                     "layer_ids": "optional list of integer layer ids",
                     "layer_names": "optional list of layer names",
                     "max_layers": f"optional integer; capped at {MAX_INSPECT_LAYERS}",
-                    "include_fields": "optional list: basic,shares,placement,timing,energy,energy_components,breakdown,root_cause,features",
+                    "include_fields": (
+                        "optional list: basic,shares,placement,timing,energy,energy_components,breakdown,"
+                        "root_cause,features, or dimension aliases compute/memory/communication/buffer"
+                    ),
                 },
             ),
             ToolSpec(
@@ -1399,6 +1405,11 @@ class AnalysisToolbox:
             fields = {str(item).strip() for item in raw_fields if str(item).strip()}
         else:
             raise ValueError("include_fields must be a list or comma-separated string.")
+        dimension_aliases = {"compute", "memory", "communication", "buffer"}
+        requested_dimensions = fields & dimension_aliases
+        if requested_dimensions:
+            fields -= dimension_aliases
+            fields.update({"root_cause", "breakdown", "energy", "energy_components"})
         allowed = {"basic", "shares", "placement", "timing", "energy", "energy_components", "breakdown", "root_cause", "features"}
         unknown = fields - allowed
         if unknown:
